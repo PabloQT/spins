@@ -49,7 +49,7 @@ end
 
 -- Helper: teleport using FireServer with countdown
 local function teleportPlace(placeName)
-    countdown(5, "🌐 Teleporting to: " .. placeName)
+    countdown(1, "🌐 Teleporting to: " .. placeName)
     if placeTeleport then
         placeTeleport:FireServer(placeName)
     else
@@ -59,7 +59,7 @@ end
 
 -- Helper: join exact JobId with countdown
 local function joinJobId(targetPlaceId, targetJobId)
-    countdown(5, "🛠 Joining correct JobId")
+    countdown(1, "🛠 Joining correct JobId")
     local success, err = pcall(function()
         TeleportService:TeleportToPlaceInstance(targetPlaceId, targetJobId, Player)
     end)

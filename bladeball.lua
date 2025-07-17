@@ -9,7 +9,8 @@ local Window = Fluent:CreateWindow({
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true,
     Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl
+    MinimizeKey = Enum.KeyCode.LeftControl,
+    Logo = "rbxassetid://10590477450"
 })
 
 local Tabs = {

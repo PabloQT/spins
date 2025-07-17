@@ -34,6 +34,57 @@ local net = ReplicatedStorage.Packages._Index["sleitnick_net@0.1.0"].net
 local placeTeleport = net:FindFirstChild("RE/PlaceTeleport")
 local claimRemote = net:FindFirstChild("RE/FriendsList/CollectReward")
 
+-- UI Inputs
+local InputDelay = Tabs.Main:AddInput("InputDelay", {
+    Title = "Delay (seconds)",
+    Default = "1",
+    Placeholder = "Delay between actions (e.g. 1)",
+    Numeric = true
+})
+
+local InputPlazaJobId = Tabs.Main:AddInput("InputPlazaJobId", {
+    Title = "Trade Plaza JobId",
+    Default = PLAZA_JOB_ID,
+    Placeholder = "Enter Plaza JobId",
+    Numeric = false
+})
+
+local InputDefaultJobId = Tabs.Main:AddInput("InputDefaultJobId", {
+    Title = "Default JobId",
+    Default = DEFAULT_JOB_ID,
+    Placeholder = "Enter Default JobId",
+    Numeric = false
+})
+
+local InputRepeatCount = Tabs.Main:AddInput("InputRepeatCount", {
+    Title = "Repeat Count",
+    Default = "100",
+    Placeholder = "How many times to repeat claiming",
+    Numeric = true
+})
+
+-- UI Toggles
+local ToggleUseBuiltInJobId = Tabs.Main:AddToggle("ToggleUseBuiltInJobId", {
+    Title = "Use Built-in JobId",
+    Default = true
+})
+
+local ToggleUseInputJobId = Tabs.Main:AddToggle("ToggleUseInputJobId", {
+    Title = "Use Input JobId",
+    Default = false
+})
+
+local ToggleClaimReward = Tabs.Main:AddToggle("ToggleClaimReward", {
+    Title = "Claim Reward",
+    Default = true
+})
+
+local ToggleRunScript = Tabs.Main:AddToggle("ToggleRunScript", {
+    Title = "Run Script",
+    Default = false
+})
+
+-- Helper function to update status
 local function updateStatus(text)
     statusParagraph:SetContent(text)
 end
@@ -65,29 +116,65 @@ local function joinJobId(targetPlaceId, targetJobId)
     end
 end
 
+-- Read values from UI
+local function getJobIdForPlace(placeId)
+    if ToggleUseBuiltInJobId.Value then
+        if placeId == PLAZA_PLACE_ID then
+            return PLAZA_JOB_ID
+        elseif placeId == DEFAULT_PLACE_ID then
+            return DEFAULT_JOB_ID
+        end
+    elseif ToggleUseInputJobId.Value then
+        if placeId == PLAZA_PLACE_ID then
+            return InputPlazaJobId.Value
+        elseif placeId == DEFAULT_PLACE_ID then
+            return InputDefaultJobId.Value
+        end
+    end
+    return nil
+end
+
+local function getDelay()
+    return tonumber(InputDelay.Value) or 1
+end
+
+local function getRepeatCount()
+    return tonumber(InputRepeatCount.Value) or 100
+end
+
 local function claimRewards()
+    if not ToggleClaimReward.Value then
+        updateStatus("⚠️ Claim reward toggle is off.")
+        return
+    end
+
     if not claimRemote then
         updateStatus("⚠️ Claim remote not found!")
         return
     end
 
-    updateStatus("🎁 Claiming rewards...")
-    local claimedCount = 0
-    for i = 1, 3 do
-        local success, err = pcall(function()
-            claimRemote:FireServer(i)
-        end)
-        if success then
-            claimedCount += 1
-            updateStatus("🎉 Claimed reward " .. i)
-        else
-            warn("Failed to claim reward", i, err)
-            updateStatus("❌ Failed reward " .. i)
+    local repeatCount = getRepeatCount()
+    updateStatus("🎁 Claiming rewards " .. repeatCount .. " times...")
+
+    local claimedTotal = 0
+    for count = 1, repeatCount do
+        for i = 1, 3 do
+            local success, err = pcall(function()
+                claimRemote:FireServer(i)
+            end)
+            if success then
+                claimedTotal += 1
+                updateStatus("🎉 Claimed reward " .. i .. " (" .. count .. "/" .. repeatCount .. ")")
+            else
+                warn("Failed to claim reward", i, err)
+                updateStatus("❌ Failed reward " .. i .. " (" .. count .. "/" .. repeatCount .. ")")
+            end
+            task.wait(0.3)
         end
-        task.wait(0.3)
+        task.wait(getDelay())
     end
 
-    if claimedCount == 3 then
+    if claimedTotal == repeatCount * 3 then
         updateStatus("✅ All rewards claimed!")
     else
         updateStatus("⚠️ Some rewards failed.")
@@ -102,27 +189,28 @@ local function runLoop()
 
     repeat wait() until game:IsLoaded()
     while runningLoop do
-        local placeId, jobId = game.PlaceId, game.JobId
+        if not ToggleRunScript.Value then
+            updateStatus("⏸ Script paused (toggle off)")
+            wait(1)
+            continue
+        end
 
-        if placeId == DEFAULT_PLACE_ID then
-            if jobId == DEFAULT_JOB_ID then
-                updateStatus("✅ In Default (correct JobId)")
+        local placeId, jobId = game.PlaceId, game.JobId
+        local targetJobId = getJobIdForPlace(placeId)
+
+        if placeId == DEFAULT_PLACE_ID or placeId == PLAZA_PLACE_ID then
+            if jobId == targetJobId then
+                updateStatus("✅ In place with correct JobId")
                 claimRewards()
                 wait(2)
-                teleportPlace("TradingPlaza")
+                if placeId == DEFAULT_PLACE_ID then
+                    teleportPlace("TradingPlaza")
+                else
+                    teleportPlace("Default")
+                end
             else
-                updateStatus("❌ In Default but wrong JobId")
-                joinJobId(DEFAULT_PLACE_ID, DEFAULT_JOB_ID)
-            end
-        elseif placeId == PLAZA_PLACE_ID then
-            if jobId == PLAZA_JOB_ID then
-                updateStatus("✅ In Plaza (correct JobId)")
-                claimRewards()
-                wait(2)
-                teleportPlace("Default")
-            else
-                updateStatus("❌ In Plaza but wrong JobId")
-                joinJobId(PLAZA_PLACE_ID, PLAZA_JOB_ID)
+                updateStatus("❌ Wrong JobId, joining correct one...")
+                joinJobId(placeId, targetJobId)
             end
         else
             updateStatus("🚫 Not in recognized place")

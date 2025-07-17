@@ -49,7 +49,7 @@ end
 
 -- Helper: teleport using FireServer with countdown
 local function teleportPlace(placeName)
-    countdown(1, "🌐 Teleporting to: " .. placeName)
+    countdown(0.1, "🌐 Teleporting to: " .. placeName)
     if placeTeleport then
         placeTeleport:FireServer(placeName)
     else
@@ -59,7 +59,7 @@ end
 
 -- Helper: join exact JobId with countdown
 local function joinJobId(targetPlaceId, targetJobId)
-    countdown(1, "🛠 Joining correct JobId")
+    countdown(0.1, "🛠 Joining correct JobId")
     local success, err = pcall(function()
         TeleportService:TeleportToPlaceInstance(targetPlaceId, targetJobId, Player)
     end)
@@ -108,7 +108,7 @@ local function runLoop()
             if jobId == DEFAULT_JOB_ID then
                 status.Text = "✅ In Default (correct JobId)"
                 claimRewards()
-                wait(2)
+                wait(0.1)
                 teleportPlace("TradingPlaza")
             else
                 status.Text = "❌ In Default but wrong JobId"
@@ -119,7 +119,7 @@ local function runLoop()
             if jobId == PLAZA_JOB_ID then
                 status.Text = "✅ In Plaza (correct JobId)"
                 claimRewards()
-                wait(2)
+                wait(0.1)
                 teleportPlace("Default")
             else
                 status.Text = "❌ In Plaza but wrong JobId"

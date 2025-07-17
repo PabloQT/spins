@@ -1,101 +1,145 @@
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-
-local Window = Fluent:CreateWindow({
-    Title = "Teleport + Rewards",
-    SubTitle = "by yourname",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-    Acrylic = true,
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl,
-    Logo = "rbxassetid://10590477450"
-})
-
-local Tabs = {
-    Main = Window:AddTab({ Title = "Main", Icon = "globe" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
-}
-
-local statusParagraph = Tabs.Main:AddParagraph({ Title = "Status", Content = "Waiting..." })
-
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Player = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
 
+-- Constants
 local DEFAULT_PLACE_ID = 13772394625
 local DEFAULT_JOB_ID = "8383dc55-82d3-45bb-83d5-d4bbd50e7f41"
 local PLAZA_PLACE_ID = 16581637217
 local PLAZA_JOB_ID = "96c12b32-ee1e-43d2-aa65-23a4598f3df0"
 
+-- Networking
 local net = ReplicatedStorage.Packages._Index["sleitnick_net@0.1.0"].net
 local placeTeleport = net:FindFirstChild("RE/PlaceTeleport")
 local claimRemote = net:FindFirstChild("RE/FriendsList/CollectReward")
 
--- UI Inputs
-local InputDelay = Tabs.Main:AddInput("InputDelay", {
-    Title = "Delay (seconds)",
-    Default = "1",
-    Placeholder = "Delay between actions (e.g. 1)",
-    Numeric = true
-})
+-- UI Setup
+local function createUI()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "SleekStatusUI"
+    gui.ResetOnSpawn = false
+    gui.Parent = CoreGui
 
-local InputPlazaJobId = Tabs.Main:AddInput("InputPlazaJobId", {
-    Title = "Trade Plaza JobId",
-    Default = PLAZA_JOB_ID,
-    Placeholder = "Enter Plaza JobId",
-    Numeric = false
-})
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 420, 0, 100)
+    frame.Position = UDim2.new(0.5, -210, 0, 50)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    frame.BackgroundTransparency = 0.15
+    frame.BorderSizePixel = 0
+    frame.AnchorPoint = Vector2.new(0.5, 0)
+    frame.ClipsDescendants = true
+    frame.Parent = gui
 
-local InputDefaultJobId = Tabs.Main:AddInput("InputDefaultJobId", {
-    Title = "Default JobId",
-    Default = DEFAULT_JOB_ID,
-    Placeholder = "Enter Default JobId",
-    Numeric = false
-})
+    -- Rounded corners
+    local corner = Instance.new("UICorner", frame)
+    corner.CornerRadius = UDim.new(0, 15)
 
-local InputRepeatCount = Tabs.Main:AddInput("InputRepeatCount", {
-    Title = "Repeat Count",
-    Default = "100",
-    Placeholder = "How many times to repeat claiming",
-    Numeric = true
-})
+    -- Gradient overlay for subtle shine
+    local gradient = Instance.new("UIGradient", frame)
+    gradient.Rotation = 90
+    gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 80, 100)),
+        ColorSequenceKeypoint.new(0.4, Color3.fromRGB(40, 40, 50)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 80, 100))
+    }
+    gradient.Transparency = NumberSequence.new{
+        NumberSequenceKeypoint.new(0, 0.8),
+        NumberSequenceKeypoint.new(0.3, 1),
+        NumberSequenceKeypoint.new(0.7, 1),
+        NumberSequenceKeypoint.new(1, 0.8)
+    }
 
--- UI Toggles
-local ToggleUseBuiltInJobId = Tabs.Main:AddToggle("ToggleUseBuiltInJobId", {
-    Title = "Use Built-in JobId",
-    Default = true
-})
+    -- Title label
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.BackgroundTransparency = 1
+    title.TextColor3 = Color3.fromRGB(190, 190, 255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 20
+    title.Text = "Teleport + Rewards Manager"
+    title.Parent = frame
 
-local ToggleUseInputJobId = Tabs.Main:AddToggle("ToggleUseInputJobId", {
-    Title = "Use Input JobId",
-    Default = false
-})
+    -- Status label
+    local status = Instance.new("TextLabel")
+    status.Size = UDim2.new(1, -40, 0, 50)
+    status.Position = UDim2.new(0, 20, 0, 40)
+    status.BackgroundTransparency = 1
+    status.TextColor3 = Color3.fromRGB(225, 225, 255)
+    status.TextWrapped = true
+    status.Font = Enum.Font.Gotham
+    status.TextSize = 18
+    status.TextXAlignment = Enum.TextXAlignment.Left
+    status.TextYAlignment = Enum.TextYAlignment.Top
+    status.Text = "Initializing..."
+    status.Parent = frame
 
-local ToggleClaimReward = Tabs.Main:AddToggle("ToggleClaimReward", {
-    Title = "Claim Reward",
-    Default = true
-})
+    -- Loading spinner (rotating circle)
+    local spinner = Instance.new("ImageLabel")
+    spinner.Size = UDim2.new(0, 30, 0, 30)
+    spinner.Position = UDim2.new(1, -40, 0, 35)
+    spinner.BackgroundTransparency = 1
+    spinner.Image = "rbxassetid://2404950086" -- Cool spinner asset (circle)
+    spinner.Parent = frame
 
-local ToggleRunScript = Tabs.Main:AddToggle("ToggleRunScript", {
-    Title = "Run Script",
-    Default = false
-})
+    -- Animate spinner rotation
+    coroutine.wrap(function()
+        local angle = 0
+        while gui.Parent do
+            angle = (angle + 6) % 360
+            spinner.Rotation = angle
+            RunService.Heartbeat:Wait()
+        end
+    end)()
 
--- Helper function to update status
-local function updateStatus(text)
-    statusParagraph:SetContent(text)
+    -- Fade in animation
+    frame.BackgroundTransparency = 1
+    title.TextTransparency = 1
+    status.TextTransparency = 1
+    spinner.ImageTransparency = 1
+    local fadeInSteps = 20
+    for i = 1, fadeInSteps do
+        local t = i / fadeInSteps
+        frame.BackgroundTransparency = 0.15 * (1 - t)
+        title.TextTransparency = 1 - t
+        status.TextTransparency = 1 - t
+        spinner.ImageTransparency = 1 - t
+        task.wait(0.03)
+    end
+
+    return status
 end
 
+local statusLabel = createUI()
+
+-- Utility: update status text with fade effect
+local function updateStatus(newText)
+    coroutine.wrap(function()
+        -- Fade out
+        for i = 0, 1, 0.1 do
+            statusLabel.TextTransparency = i
+            task.wait(0.02)
+        end
+        statusLabel.Text = newText
+        -- Fade in
+        for i = 1, 0, -0.1 do
+            statusLabel.TextTransparency = i
+            task.wait(0.02)
+        end
+    end)()
+end
+
+-- Countdown helper
 local function countdown(seconds, actionText)
     for i = seconds, 0, -1 do
         updateStatus(actionText .. " in " .. i .. "s")
-        task.wait(1)
+        wait(1)
     end
 end
 
+-- Teleport helpers
 local function teleportPlace(placeName)
     countdown(5, "🌐 Teleporting to: " .. placeName)
     if placeTeleport then
@@ -116,159 +160,67 @@ local function joinJobId(targetPlaceId, targetJobId)
     end
 end
 
--- Read values from UI
-local function getJobIdForPlace(placeId)
-    if ToggleUseBuiltInJobId.Value then
-        if placeId == PLAZA_PLACE_ID then
-            return PLAZA_JOB_ID
-        elseif placeId == DEFAULT_PLACE_ID then
-            return DEFAULT_JOB_ID
-        end
-    elseif ToggleUseInputJobId.Value then
-        if placeId == PLAZA_PLACE_ID then
-            return InputPlazaJobId.Value
-        elseif placeId == DEFAULT_PLACE_ID then
-            return InputDefaultJobId.Value
-        end
-    end
-    return nil
-end
-
-local function getDelay()
-    return tonumber(InputDelay.Value) or 1
-end
-
-local function getRepeatCount()
-    return tonumber(InputRepeatCount.Value) or 100
-end
-
 local function claimRewards()
-    if not ToggleClaimReward.Value then
-        updateStatus("⚠️ Claim reward toggle is off.")
-        return
-    end
-
     if not claimRemote then
         updateStatus("⚠️ Claim remote not found!")
         return
     end
-
-    local repeatCount = getRepeatCount()
-    updateStatus("🎁 Claiming rewards " .. repeatCount .. " times...")
-
-    local claimedTotal = 0
-    for count = 1, repeatCount do
-        for i = 1, 3 do
-            local success, err = pcall(function()
-                claimRemote:FireServer(i)
-            end)
-            if success then
-                claimedTotal += 1
-                updateStatus("🎉 Claimed reward " .. i .. " (" .. count .. "/" .. repeatCount .. ")")
-            else
-                warn("Failed to claim reward", i, err)
-                updateStatus("❌ Failed reward " .. i .. " (" .. count .. "/" .. repeatCount .. ")")
-            end
-            task.wait(0.3)
+    updateStatus("🎁 Claiming rewards...")
+    local claimedCount = 0
+    for i = 1, 3 do
+        local success, err = pcall(function()
+            claimRemote:FireServer(i)
+        end)
+        if success then
+            claimedCount = claimedCount + 1
+            updateStatus("🎉 Claimed reward " .. i)
+        else
+            warn("Failed to claim reward", i, err)
+            updateStatus("❌ Failed claim reward " .. i)
         end
-        task.wait(getDelay())
+        task.wait(0.3)
     end
-
-    if claimedTotal == repeatCount * 3 then
+    if claimedCount == 3 then
         updateStatus("✅ All rewards claimed!")
     else
-        updateStatus("⚠️ Some rewards failed.")
+        updateStatus("⚠️ Some rewards failed to claim.")
     end
 end
 
-local runningLoop = false
-
+-- Main loop
 local function runLoop()
-    if runningLoop then return end
-    runningLoop = true
-
     repeat wait() until game:IsLoaded()
-    while runningLoop do
-        if not ToggleRunScript.Value then
-            updateStatus("⏸ Script paused (toggle off)")
-            wait(1)
-            continue
-        end
+    while true do
+        local placeId = game.PlaceId
+        local jobId = game.JobId
 
-        local placeId, jobId = game.PlaceId, game.JobId
-        local targetJobId = getJobIdForPlace(placeId)
-
-        if placeId == DEFAULT_PLACE_ID or placeId == PLAZA_PLACE_ID then
-            if jobId == targetJobId then
-                updateStatus("✅ In place with correct JobId")
+        if placeId == DEFAULT_PLACE_ID then
+            if jobId == DEFAULT_JOB_ID then
+                updateStatus("✅ In Default (correct JobId)")
                 claimRewards()
                 wait(2)
-                if placeId == DEFAULT_PLACE_ID then
-                    teleportPlace("TradingPlaza")
-                else
-                    teleportPlace("Default")
-                end
+                teleportPlace("TradingPlaza")
             else
-                updateStatus("❌ Wrong JobId, joining correct one...")
-                joinJobId(placeId, targetJobId)
+                updateStatus("❌ In Default but wrong JobId")
+                joinJobId(DEFAULT_PLACE_ID, DEFAULT_JOB_ID)
+            end
+        elseif placeId == PLAZA_PLACE_ID then
+            if jobId == PLAZA_JOB_ID then
+                updateStatus("✅ In Plaza (correct JobId)")
+                claimRewards()
+                wait(2)
+                teleportPlace("Default")
+            else
+                updateStatus("❌ In Plaza but wrong JobId")
+                joinJobId(PLAZA_PLACE_ID, PLAZA_JOB_ID)
             end
         else
-            updateStatus("🚫 Not in recognized place")
+            updateStatus("🚫 Not in recognized place (Default or Plaza)")
             break
         end
         wait(2)
     end
 end
 
-Tabs.Main:AddButton({
-    Title = "▶️ Start Loop",
-    Description = "Begin auto reward + teleport loop",
-    Callback = function()
-        Fluent:Notify({ Title = "Loop Started", Content = "Running loop...", Duration = 4 })
-        task.spawn(runLoop)
-    end
-})
-
-Tabs.Main:AddButton({
-    Title = "🎁 Claim Rewards",
-    Description = "Manually trigger claim",
-    Callback = claimRewards
-})
-
-Tabs.Main:AddButton({
-    Title = "🌍 Teleport: Default",
-    Description = "FireServer to teleport to 'Default'",
-    Callback = function() teleportPlace("Default") end
-})
-
-Tabs.Main:AddButton({
-    Title = "🌍 Teleport: Trading Plaza",
-    Description = "FireServer to teleport to 'TradingPlaza'",
-    Callback = function() teleportPlace("TradingPlaza") end
-})
-
-Tabs.Main:AddButton({
-    Title = "⛓ Join Default JobId",
-    Description = "Force join correct DEFAULT job",
-    Callback = function() joinJobId(DEFAULT_PLACE_ID, DEFAULT_JOB_ID) end
-})
-
-Tabs.Main:AddButton({
-    Title = "⛓ Join Plaza JobId",
-    Description = "Force join correct PLAZA job",
-    Callback = function() joinJobId(PLAZA_PLACE_ID, PLAZA_JOB_ID) end
-})
-
--- Fluent Addon Integration
-SaveManager:SetLibrary(Fluent)
-InterfaceManager:SetLibrary(Fluent)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
-InterfaceManager:SetFolder("MyScriptHub")
-SaveManager:SetFolder("MyScriptHub/MyGame")
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-SaveManager:BuildConfigSection(Tabs.Settings)
-Window:SelectTab(1)
-
-Fluent:Notify({ Title = "Fluent", Content = "Script loaded successfully!", Duration = 6 })
-SaveManager:LoadAutoloadConfig()
+-- Start the main loop
+runLoop()

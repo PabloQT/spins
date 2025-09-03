@@ -1,5 +1,5 @@
--- ⚡ 1h Server Hop + Smart Rejoin Script
--- ✅ Waits 1h, then decides: rejoin if <=5 players, else hop to lowest-pop server
+-- ⚡ 1h Smart Spam-Hop + Rejoin Script
+-- ✅ Wait 1h → if ≤5 players rejoin, else spam hop lowest-pop server until success
 
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
@@ -25,11 +25,10 @@ local function getServers(cursor)
     end
 end
 
--- Hop to lowest-player server
-local function hopLowest()
+-- Find lowest-pop server (not current one)
+local function findLowestServer()
     local cursor = ""
-    local lowestServer = nil
-    local lowestPlayers = 999
+    local lowestServer, lowestPlayers = nil, 999
 
     while true do
         local servers = getServers(cursor)
@@ -46,33 +45,49 @@ local function hopLowest()
         end
     end
 
-    if lowestServer then
-        print("🌏 Hopping to server with "..lowestPlayers.." players...")
-        TeleportService:TeleportToPlaceInstance(gameId, lowestServer, player)
-    else
-        warn("⚠ No servers found!")
+    return lowestServer, lowestPlayers
+end
+
+-- Spam hop until success
+local function spamHop()
+    while true do
+        local serverId, count = findLowestServer()
+        if serverId then
+            print("🌏 Trying to hop → server with "..count.." players...")
+            local success, err = pcall(function()
+                TeleportService:TeleportToPlaceInstance(gameId, serverId, player)
+            end)
+            if success then
+                break -- should leave game if teleport works
+            else
+                warn("⚠ Hop failed, retrying...", err)
+            end
+        else
+            warn("⚠ No server found, retrying...")
+        end
+        task.wait(2) -- small retry delay
     end
 end
 
--- Rejoin current server
+-- Rejoin same server
 local function rejoinSame()
-    print("♻ Rejoining same server (low player count)...")
+    print("♻ Rejoining same server (≤5 players)...")
     TeleportService:TeleportToPlaceInstance(gameId, game.JobId, player)
 end
 
--- Main Loop
+-- Main loop
 task.spawn(function()
     while true do
-        print("⏳ Waiting 1 hour before check...")
-        task.wait(3600) -- 1 hour
+        print("⏳ Waiting 1 hour before hop/rejoin...")
+        task.wait(3600) -- 1h
 
         local playerCount = #Players:GetPlayers()
-        print("👥 Current server player count:", playerCount)
+        print("👥 Current player count:", playerCount)
 
         if playerCount <= 5 then
             rejoinSame()
         else
-            hopLowest()
+            spamHop()
         end
     end
 end)
